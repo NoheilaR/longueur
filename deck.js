@@ -1,0 +1,21 @@
+// Cartes : [extrême gauche, extrême droite]
+module.exports = [
+  ['Froid','Chaud'],['Triste','Joyeux'],['Enfant','Adulte'],['Dystopie','Utopie'],['Inutile','Indispensable'],
+  ['Sous-coté','Surcoté'],['Bon marché','Hors de prix'],['Mauvais film','Film culte'],['Facile à prononcer','Imprononçable'],
+  ['Doux','Rugueux'],['Ringard','Stylé'],['Calme','Bruyant'],['Héros','Méchant'],['Minuscule','Gigantesque'],
+  ['Sain','Malsain'],['Mauvaise idée','Excellente idée'],['Normal','Bizarre'],['Commun','Rare'],['Sucré','Salé'],
+  ['Inconnu','Ultra célèbre'],['Ennuyeux','Passionnant'],['Ancien','Moderne'],['Faible','Puissant'],
+  ['Moche','Magnifique'],['Mou','Dur'],['Fragile','Indestructible'],['Mauvaise habitude','Bonne habitude'],
+  ['Cliché','Original'],['Rêve','Cauchemar'],['Lent','Rapide'],['Introverti','Extraverti'],['Sale','Propre'],
+  ['Ça pue','Ça sent divinement bon'],['Été','Hiver'],['Matin','Soir'],['Ville','Campagne'],['Chat','Chien'],
+  ['Facile','Difficile'],['Pas un sport','Vrai sport'],['Cadeau nul','Cadeau parfait'],['Rassurant','Flippant'],
+  ['Pas romantique','Très romantique'],['Snack','Vrai repas'],['Démodé','Tendance'],['Débutant','Expert'],
+  ['Inoffensif','Dangereux'],['Fade','Épicé'],['Super-pouvoir nul','Super-pouvoir génial'],['Pire métier','Métier de rêve'],
+  ['Série nulle','Meilleure série'],['Red flag','Green flag'],['Gênant','Cool'],['Boomer','Gen Z'],
+  ['Peu d\'effort','Énorme effort'],['Chance','Talent'],['Jour','Nuit'],['Radin','Généreux'],['Paresseux','Bosseur'],
+  ['Classe','Vulgaire'],['Liquide','Solide'],['Plat simple','Plat compliqué'],['Premier date raté','Premier date parfait'],
+  ['Pas drôle','Hilarant'],['Fiction','Réalité'],['Interdit aux enfants','Pour toute la famille'],['Bon prénom de chien','Mauvais prénom de chien'],
+  ['Mauvaise chanson','Tube absolu'],['Silencieux','Assourdissant'],['Calories vides','Super nutritif'],['Aventure','Confort'],
+  ['Petit plaisir','Gros péché'],['Sous-payé','Surpayé'],['Arnaque','Bonne affaire'],['Mauvais conseil','Sage conseil'],
+  ['Simple','Compliqué'],['Fruit','Légume'],['Pas cher à entretenir','Gouffre financier'],['Oubliable','Inoubliable'],
+];
