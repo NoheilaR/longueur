@@ -91,6 +91,17 @@ button.ghost { background: transparent; color: var(--text); box-shadow: inset 0 
 button.ghost:active { box-shadow: inset 0 0 0 2px var(--muted) }
 button.small { padding: 8px 14px; font-size: .9rem }
 button:disabled { opacity: .45; cursor: not-allowed }
+.field { display: grid; gap: 8px }
+.field-label { font-weight: 600; font-size: .92rem }
+.field-hint { font-size: .85rem }
+.seg { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 4px; border-radius: 16px; background: rgba(0,0,0,.25); box-shadow: inset 0 0 0 2px var(--line) }
+.seg button {
+  padding: 10px 0; border-radius: 12px; background: transparent; color: var(--muted); box-shadow: none;
+  font-family: var(--display); font-weight: 400; font-size: 1.15rem; transition: background .15s, color .15s;
+}
+.seg button:hover { color: var(--text); background: rgba(255,255,255,.06) }
+.seg button[aria-checked="true"] { background: var(--face); color: var(--card-ink); box-shadow: 0 3px 0 #5fae93 }
+.seg button:active { transform: translateY(2px) }
 .linkish { all: unset; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; color: var(--text) }
 .linkish:focus-visible { outline: 2px solid var(--face); outline-offset: 2px }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center }
@@ -483,9 +494,11 @@ const screens = {
             <span>${p.id === S.you ? '<span class="tag you">Toi</span>' : ''}</span></div>`).join('')}
         </div>
         ${isHost() ? `
-          <label for="laps">Nombre de tours
-            <select id="laps">${[1, 2, 3, 4, 5].map(l => `<option value="${l}" ${l === S.laps ? 'selected' : ''}>${l} tour${l > 1 ? 's' : ''} : chacun est meneur ${l} fois</option>`).join('')}</select>
-          </label>
+          <div class="field">
+            <span class="field-label" id="laps-label">Nombre de tours</span>
+            <div class="seg" role="radiogroup" aria-labelledby="laps-label">${[1, 2, 3, 4, 5].map(l => `<button type="button" role="radio" aria-checked="${l === S.laps}" data-act="laps" data-laps="${l}">${l}</button>`).join('')}</div>
+            <span class="muted field-hint">Chacun sera meneur ${S.laps} fois</span>
+          </div>
           <button class="wide" data-act="start" ${n < 2 ? 'disabled' : ''}>${n < 2 ? 'En attente d\'un 2e joueur…' : `Lancer la partie (${n * S.laps} manches)`}</button>`
         : `<p class="muted">${S.laps} tour${S.laps > 1 ? 's' : ''} : chacun sera meneur ${S.laps} fois.</p>
            <p class="wait">${esc(P(S.hostId).name)} va lancer la partie</p>`}
@@ -640,7 +653,6 @@ function bind() {
     return;
   }
   if (S.phase === 'lobby') {
-    $('laps')?.addEventListener('change', e => socket.emit('settings', { laps: +e.target.value }));
   }
   if (S.phase === 'clue' && isPsy()) {
     openDial('d');
@@ -694,6 +706,7 @@ app.addEventListener('click', e => {
         if (draft.custom) $('cl').focus();
       }
       break;
+    case 'laps': socket.emit('settings', { laps: +b.dataset.laps }); break;
     case 'lock': sfx.lock(); socket.emit('guess', { value: live }); break;
     case 'reveal': socket.emit('forceReveal'); break;
     default: socket.emit(act); // start, reroll, skip, next, lobby
