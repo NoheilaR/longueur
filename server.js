@@ -141,8 +141,9 @@ io.on('connection', socket => {
 
   function enter(r, id, name) {
     let p = player(r, id);
+    if (!p && r.players.length >= MAX_PLAYERS) return fail('La room est pleine (12 joueurs max).');
+    if (room && room !== r) detach();
     if (!p) {
-      if (r.players.length >= MAX_PLAYERS) return fail('La room est pleine (12 joueurs max).');
       const used = new Set(r.players.map(x => x.color));
       p = { id, name, color: COLORS.find(c => !used.has(c)) || COLORS[r.players.length % COLORS.length], score: 0, connected: true, inRound: false };
       r.players.push(p);
@@ -172,16 +173,21 @@ io.on('connection', socket => {
     enter(r, id, name);
   });
 
-  socket.on('leave', () => {
+  // Retire le joueur de sa room actuelle (bouton Quitter, ou quand il rejoint/crée une autre room)
+  function detach() {
     if (!room || !me) return;
-    room.players = room.players.filter(p => p.id !== me.id);
-    delete room.guesses[me.id];
-    socket.leave(room.code);
-    const r = room; room = null; me = null;
+    const r = room, id = me.id;
+    room = null; me = null;
+    socket.leave(r.code);
+    r.players = r.players.filter(p => p.id !== id);
+    delete r.guesses[id];
     if (!r.players.length) { rooms.delete(r.code); return; }
-    if (r.psychicId && !player(r, r.psychicId) && r.phase !== 'lobby' && r.phase !== 'end') startRound(r);
+    if (r.hostId === id) r.hostId = null;
+    if (r.psychicId === id && (r.phase === 'clue' || r.phase === 'guess')) startRound(r);
     fixHost(r); maybeReveal(r); broadcast(r);
-  });
+  }
+
+  socket.on('leave', detach);
 
   socket.on('settings', ({ laps }) => {
     if (!isHost() || room.phase !== 'lobby') return;
