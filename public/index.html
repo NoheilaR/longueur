@@ -262,30 +262,43 @@ const sfx = (() => {
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + dur * .35); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
     src.connect(bp); bp.connect(g); g.connect(master); src.start(t); src.stop(t + dur);
   }
-  const bell = (f, at = 0, vol = .12, dur = .5) => { tone({ f, dur, vol, at }); tone({ f: f * 2, dur: dur * .6, vol: vol * .3, at }); };
-  const arp = (notes, step = .09, vol = .12, dur = .45) => notes.forEach((f, i) => bell(f, i * step, vol, dur));
+  // Bruitages uniquement (plastique, carton, mécanique), pas de notes de musique
+  const click = (at = 0, f = 3000, vol = .12, dur = .012) => noise({ dur, vol, at, from: f, to: f * 1.1, q: 2.5 });
+  const thud = (at = 0, f = 140, vol = .18) => tone({ f, f2: f * .55, dur: .09, type: 'sine', vol, at, attack: .002 });
+  const pop = (at = 0, f1 = 280, f2 = 900, vol = .12) => tone({ f: f1, f2, dur: .06, type: 'sine', vol, at, attack: .002 });
+  const swish = (at = 0, dur = .25, from = 600, to = 3500, vol = .06) => noise({ dur, vol, at, from, to, q: .8 });
+  const crackle = (at = 0, dur = .6, count = 18, vol = .07) => {
+    for (let i = 0; i < count; i++) click(at + Math.random() * dur, 2000 + Math.random() * 5000, vol * (.4 + Math.random() * .6), .006 + Math.random() * .01);
+  };
+  const applause = (at = 0, dur = 1.6) => {
+    for (let i = 0; i < 70; i++) { const t = at + Math.random() * dur * (1 - Math.random() * .3); click(t, 900 + Math.random() * 2500, .05 + Math.random() * .05, .02 + Math.random() * .02); }
+  };
 
   return {
     get muted() { return muted; },
     toggle() { muted = !muted; store.set('lo-mute', muted ? '1' : '0'); if (!muted) this.tap(); return muted; },
-    tap()     { tone({ f: 520, f2: 430, dur: .07, type: 'triangle', vol: .09 }); },
-    tick()    { tone({ f: 2300, dur: .018, type: 'square', vol: .025, lp: 4000 }); },
-    lock()    { tone({ f: 330, dur: .08, type: 'triangle', vol: .14 }); bell(660, .07, .12, .3); bell(990, .14, .1, .4); },
-    join()    { tone({ f: 520, f2: 820, dur: .14, type: 'sine', vol: .1 }); },
-    leave()   { tone({ f: 600, f2: 380, dur: .16, type: 'sine', vol: .07 }); },
-    blip()    { tone({ f: 880, dur: .06, type: 'sine', vol: .06 }); },
-    yourTurn() { arp([523, 659, 784, 1047], .1, .12, .6); },
-    newRound() { arp([392, 523], .08, .08, .35); },
-    clueIn()  { bell(784, 0, .12, .4); bell(1175, .1, .1, .6); },
-    open()    { noise({ dur: .9, vol: .07, from: 250, to: 2200 }); tone({ f: 70, f2: 50, dur: .9, type: 'sine', vol: .12 }); },
-    score(p) {
-      if (p <= 0) { tone({ f: 330, f2: 196, dur: .5, type: 'sawtooth', vol: .07, lp: 900 }); tone({ f: 311, f2: 185, dur: .6, type: 'sawtooth', vol: .05, at: .35, lp: 700 }); return; }
-      const scale = [523, 659, 784, 1047, 1319];
-      arp(scale.slice(0, p), .09, .12, .5);
-      if (p >= 4) { [1568, 2093, 2637].forEach((f, i) => tone({ f, dur: .25, vol: .05, at: .45 + i * .05 })); noise({ dur: .4, vol: .03, at: .45, from: 4000, to: 9000, q: .7 }); }
+    tap()      { click(0, 2600, .1); thud(0, 220, .06); },                       // clic de bouton en plastique
+    tick()     { click(0, 4200, .045, .006); },                                  // cran de la molette
+    lock()     { click(0, 2200, .14); thud(.01, 120, .2); click(.07, 3400, .1); }, // loquet qui se ferme
+    join()     { pop(0, 260, 950, .12); },                                       // bulle qui éclate
+    leave()    { pop(0, 800, 220, .08); },
+    blip()     { pop(0, 400, 1100, .06); },
+    yourTurn() { swish(0, .22, 900, 4000, .07); thud(.2, 160, .16); thud(.32, 160, .16); }, // carte retournée + toc toc
+    newRound() { swish(0, .18, 700, 3000, .05); click(.17, 2400, .07); },        // carte qui glisse
+    clueIn()   { swish(0, .3, 400, 2500, .06); pop(.26, 300, 700, .09); },       // papier glissé
+    open() {                                                                     // l'écran pivote : cliquetis qui ralentit
+      swish(0, 1, 250, 1800, .05);
+      let t = 0, gap = .025;
+      while (t < 1) { click(t, 3000 + Math.random() * 800, .05, .006); t += gap; gap *= 1.12; }
+      thud(1.05, 110, .2);
     },
-    win()  { arp([523, 659, 784, 1047], .12, .13, .5); [523, 659, 784, 1047].forEach(f => tone({ f, dur: 1.4, vol: .05, at: .55, type: 'triangle' })); },
-    lose() { arp([392, 494, 587], .12, .1, .5); },
+    score(p) {
+      if (p <= 0) { tone({ f: 260, f2: 70, dur: .55, type: 'sawtooth', vol: .06, lp: 500 }); noise({ dur: .5, vol: .04, from: 1200, to: 200, q: .7 }); return; } // ballon qui se dégonfle
+      for (let i = 0; i < p; i++) pop(i * .11, 240 + i * 60, 800 + i * 200, .12);
+      if (p >= 4) crackle(.45, .5, 26, .08);                                       // confettis
+    },
+    win()  { crackle(0, .4, 30, .09); applause(.2, 1.8); },
+    lose() { thud(0, 130, .14); tone({ f: 220, f2: 80, dur: .5, type: 'sawtooth', vol: .04, lp: 450, at: .1 }); },
   };
 })();
 
