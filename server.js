@@ -44,7 +44,7 @@ function createRoom() {
   const room = {
     code: newCode(), hostId: null, players: [], laps: 2, phase: 'lobby',
     round: 0, totalRounds: 0, psychicId: null, card: null, target: 50, clue: '',
-    guesses: {}, results: null, deck: shuffle(DECK.map((_, i) => i)), deckPos: 0, emptySince: null,
+    guesses: {}, aims: {}, results: null, deck: shuffle(DECK.map((_, i) => i)), deckPos: 0, emptySince: null,
   };
   rooms.set(room.code, room);
   return room;
@@ -74,7 +74,7 @@ function startRound(room) {
   room.players.forEach(p => { p.inRound = p.connected; });
   drawCard(room);
   room.target = Z2 + Math.random() * (100 - 2 * Z2);
-  room.clue = ''; room.guesses = {}; room.results = null;
+  room.clue = ''; room.guesses = {}; room.aims = {}; room.results = null;
   room.phase = 'clue';
 }
 
@@ -114,6 +114,8 @@ function viewFor(room, id) {
     target: showTarget ? room.target : null,
     locked: Object.keys(room.guesses),
     myGuess: room.guesses[id] ?? null,
+    // Le meneur voit en direct où les devineurs placent leur aiguille
+    aims: isPsy && room.phase === 'guess' ? { ...room.aims, ...room.guesses } : null,
     results: room.phase === 'reveal' ? room.results : null,
   };
 }
@@ -180,7 +182,7 @@ io.on('connection', socket => {
     room = null; me = null;
     socket.leave(r.code);
     r.players = r.players.filter(p => p.id !== id);
-    delete r.guesses[id];
+    delete r.guesses[id]; delete r.aims[id];
     if (!r.players.length) { rooms.delete(r.code); return; }
     if (r.hostId === id) r.hostId = null;
     if (r.psychicId === id && (r.phase === 'clue' || r.phase === 'guess')) startRound(r);
@@ -224,6 +226,16 @@ io.on('connection', socket => {
     if (!Number.isFinite(v)) return;
     room.guesses[me.id] = Math.max(0, Math.min(100, v));
     maybeReveal(room); broadcast(room);
+  });
+
+  // Position provisoire pendant le glisser : relayée au meneur seulement
+  socket.on('aim', ({ value }) => {
+    if (!room || room.phase !== 'guess' || isPsy() || !me.inRound || me.id in room.guesses) return;
+    const v = Number(value);
+    if (!Number.isFinite(v)) return;
+    room.aims[me.id] = Math.max(0, Math.min(100, v));
+    const psy = player(room, room.psychicId);
+    if (psy?.connected && psy.socketId) io.to(psy.socketId).emit('aim', { id: me.id, v: room.aims[me.id] });
   });
 
   socket.on('forceReveal', () => {

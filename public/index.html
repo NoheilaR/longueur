@@ -63,6 +63,8 @@ p { margin: 0 }
 .dial.open .cover { transform: rotate(-180deg) }
 .needle { transition: transform .12s ease-out }
 .dial.dragging .needle { transition: none }
+.aim { transform-box: view-box; transform-origin: 210px 222px; transition: transform .15s linear, opacity .2s }
+.aim.moving { opacity: .55 }
 .rev-needle { transform-box: view-box; transform-origin: 210px 222px; animation: swing .9s cubic-bezier(.3,1.4,.5,1) both; animation-delay: var(--d, 0s) }
 @keyframes swing { from { transform: rotate(var(--from)) } }
 
@@ -178,7 +180,7 @@ label { display: grid; gap: 6px; font-weight: 600; font-size: .92rem }
 main { padding-top: 64px }
 
 @media (prefers-reduced-motion: reduce) {
-  .cover, .needle { transition: none }
+  .cover, .needle, .aim { transition: none }
   .rev-needle, .wait::before { animation: none }
 }
 </style>
@@ -311,7 +313,7 @@ function wedge(a, b, fill) {
   const [x1, y1] = pt(a), [x2, y2] = pt(b);
   return `<path d="M${CX} ${CY}L${x1.toFixed(2)} ${y1.toFixed(2)}A${R} ${R} 0 0 1 ${x2.toFixed(2)} ${y2.toFixed(2)}Z" fill="${fill}"/>`;
 }
-function dial({ target = null, needles = [], needle = null, open = false, interactive = false, id = 'dial' }) {
+function dial({ target = null, needles = [], needle = null, open = false, interactive = false, aims = false, id = 'dial' }) {
   let bands = '';
   if (target !== null) {
     const t = target;
@@ -351,17 +353,46 @@ function dial({ target = null, needles = [], needle = null, open = false, intera
     <rect x="${CX - R - 30}" y="${CY - 4}" width="${2 * R + 60}" height="34" rx="10" fill="#14264d"/>
     <rect x="${CX - R - 26}" y="${CY - 4}" width="44" height="9" rx="4.5" fill="var(--face)"/>
     <rect x="${CX + R - 18}" y="${CY - 4}" width="44" height="9" rx="4.5" fill="var(--face)"/>
-    ${rev}${main}
+    ${rev}${aims ? `<g id="${id}-aims"></g>` : ''}${main}
     <circle cx="${CX}" cy="${CY}" r="24" fill="var(--knob)"/><circle cx="${CX}" cy="${CY}" r="15" fill="#d01e3b"/>
   </svg>`;
+}
+// Aiguilles des devineurs vues par le meneur pendant qu'ils cherchent (pointillées) ou une fois validées (pleines)
+function updateAims() {
+  const layer = $('d-aims');
+  if (!layer || !S?.aims) return;
+  layer.querySelectorAll('.aim').forEach(g => { if (!(g.dataset.id in S.aims)) g.remove(); });
+  for (const [pid, v] of Object.entries(S.aims)) {
+    const p = P(pid);
+    let g = layer.querySelector(`[data-id="${CSS.escape(pid)}"]`);
+    if (!g) {
+      g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.setAttribute('class', 'aim'); g.dataset.id = pid;
+      g.innerHTML = `<line x1="${CX}" y1="${CY}" x2="${CX}" y2="${CY - R + 6}" stroke="${p.color}" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="${CX}" cy="${CY - R + 6}" r="10" fill="${p.color}" stroke="#0f1a33" stroke-width="2"/>
+        <text x="${CX}" y="${CY - R + 6}" text-anchor="middle" dominant-baseline="central" font-family="Figtree, sans-serif" font-weight="800" font-size="10" fill="#0f1a33">${esc((p.name[0] || '?').toUpperCase())}</text>`;
+      layer.appendChild(g);
+    }
+    const locked = S.locked.includes(pid);
+    g.classList.toggle('moving', !locked);
+    g.querySelector('line').setAttribute('stroke-dasharray', locked ? '' : '6 6');
+    g.style.transform = `rotate(${rot(v)}deg)`;
+  }
 }
 const openDial = id => requestAnimationFrame(() => requestAnimationFrame(() => $(id)?.classList.add('open')));
 
 function bindDrag(svg) {
   const needle = svg.querySelector('.needle');
-  let notch = Math.round(live / 2);
+  let notch = Math.round(live / 2), sentAt = 0, pending = null;
+  const sendAim = () => {
+    // Throttle : au plus ~16 envois par seconde, la dernière position part toujours
+    const wait = 60 - (Date.now() - sentAt);
+    if (wait > 0) { pending ??= setTimeout(() => { pending = null; sendAim(); }, wait); return; }
+    sentAt = Date.now(); socket.emit('aim', { value: live });
+  };
   const set = v => {
     live = Math.max(0, Math.min(100, v));
+    sendAim();
     const n = Math.round(live / 2);
     if (n !== notch) { notch = n; sfx.tick(); }
     needle.setAttribute('transform', `rotate(${rot(live)} ${CX} ${CY})`);
@@ -395,6 +426,10 @@ socket.on('connect', () => {
   else if (!S) render();
 });
 socket.on('disconnect', () => { $('conn').hidden = false; });
+socket.on('aim', ({ id, v }) => {
+  if (!S?.aims || S.locked.includes(id)) return;
+  S.aims[id] = v; updateAims();
+});
 function playTransition(prev, st) {
   if (!prev) return;
   const meId = st.you, psy = st.psychicId === meId;
@@ -551,7 +586,7 @@ const screens = {
     if (isPsy()) return `${scorebar()}<section class="board">
         <span class="eyebrow" style="color:${me().color}">Ton indice · les autres devinent</span>
         ${cardHTML(S.card)}${clue}
-        ${dial({ id: 'd', target: S.target, open: true })}
+        ${dial({ id: 'd', target: S.target, open: true, aims: true })}
         <p class="wait" id="waittxt">${waitTxt}</p>
         <button class="ghost small" data-act="reveal" style="justify-self:center" ${S.locked.length ? '' : 'disabled'}>Révéler sans attendre</button>
       </section>${hostTools()}`;
@@ -567,7 +602,7 @@ const screens = {
       <span class="eyebrow" style="color:${mine.color}">Indice de ${esc(P(S.psychicId).name)}</span>
       ${cardHTML(S.card)}${clue}
       ${dial({ id: 'g', needle: live, interactive: true })}
-      <p class="muted center" style="font-size:.85rem">Fais glisser l'aiguille, puis valide. Les autres ne voient pas ta réponse.</p>
+      <p class="muted center" style="font-size:.85rem">Fais glisser l'aiguille, puis valide. Seul le meneur voit ton aiguille bouger.</p>
       <button class="wide" data-act="lock">Valider ma position</button>
     </section>${hostTools()}`;
   },
@@ -633,6 +668,7 @@ function render(force) {
     if ($('chips')) $('chips').innerHTML = chipsHTML();
     if ($('waittxt')) { const w = waitingGuessers(); $('waittxt').textContent = w.length ? 'En attente de ' + w.map(p => p.name).join(', ') : 'Révélation…'; }
     const rv = app.querySelector('[data-act="reveal"]'); if (rv) rv.disabled = !S.locked.length;
+    updateAims();
     return;
   }
   const prev = key; key = k;
@@ -681,6 +717,7 @@ function bind() {
     });
   }
   if (S.phase === 'guess' && $('g')) bindDrag($('g'));
+  if (S.phase === 'guess' && isPsy()) updateAims();
   if (S.phase === 'reveal') openDial('d');
 }
 
@@ -715,7 +752,7 @@ app.addEventListener('click', e => {
       break;
     case 'custom':
       if (S.phase === 'clue') {
-        draft.clue = $('clue-in').value; draft.custom = !draft.custom; key = ''; render();
+        draft.clue = $('clue-in').value; draft.custom = !draft.custom; render();
         if (draft.custom) $('cl').focus();
       }
       break;
